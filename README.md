@@ -6,9 +6,11 @@
 
 - 13ME33012 K Siddharth Kannan (@icyflame)
 - 11CS10053 Vishwajeet Saharan
-- 12CS30020 Mohammad Affan Zafar
+- 12CS30020 Mohammad Affan Zafar (@aaffan)
 
 **Library:** [GNU GMP](https://gmplib.org/)
+
+**Building the project:** `g++ rsa.cpp -lgmpxx -lgmp`
 
 ### Parts of the project
 
