@@ -5,7 +5,7 @@
 **Group:** 
 
 - 13ME33012 K Siddharth Kannan (@icyflame)
-- 11CS10053 Vishwajeet Saharan
+- 11CS10053 Vishwajeet Saharan (@vsaharan93)
 - 12CS30020 Mohammad Affan Zafar (@aaffan)
 
 **Library:** [GNU GMP](https://gmplib.org/)
