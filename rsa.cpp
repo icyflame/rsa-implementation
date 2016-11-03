@@ -26,30 +26,18 @@ void write_random_to_file(const char * filename, int bit_length) {
 	fout.close();
 }
 
-int main() {
-
-	// INIT
-
-	int LENGTH_PRIMES_BITS;
-
-	srand(time(NULL));
-
-	// DECIDE BIT LENGTH OF THE PRIMES
-
-	LENGTH_PRIMES_BITS = DEFAULT_PRIME_LENGTH;
-
-	// TODO: Check if the private and public keys exist already
+void generate_key_pair(int PRIMES_BIT_LENGTH) {
+	
+	mpz_t temp_1, prime_p, prime_q, totient, private_exponent;
 
 	// Generate random P and Q values
 	
-	write_random_to_file(FILENAME_TEMP_P, LENGTH_PRIMES_BITS);
-	write_random_to_file(FILENAME_TEMP_Q, LENGTH_PRIMES_BITS);
+	write_random_to_file(FILENAME_TEMP_P, PRIMES_BIT_LENGTH);
+	write_random_to_file(FILENAME_TEMP_Q, PRIMES_BIT_LENGTH);
 
-	mpz_t prime_p, prime_q;
 	mpz_init(prime_p);
 	mpz_init(prime_q);
 
-	mpz_t temp_1;
 	mpz_init(temp_1);
 
 	// Read the random temp values from the file
@@ -69,7 +57,6 @@ int main() {
 
 	// Calculate the totient
 
-	mpz_t totient;
 	mpz_init(totient);
 
 	mpz_set_ui(totient, 1);
@@ -92,7 +79,6 @@ int main() {
 
 	// Calculate the private exponent
 
-	mpz_t private_exponent;
 	mpz_init(private_exponent);
 
 	mpz_set_ui(totient, public_exponent);
@@ -106,6 +92,23 @@ int main() {
 	mpz_clear(prime_p);
 	mpz_clear(prime_q);
 	mpz_clear(temp_1);
+}
+
+int main() {
+
+	// INIT
+
+	int LENGTH_PRIMES_BITS;
+
+	srand(time(NULL));
+
+	// DECIDE BIT LENGTH OF THE PRIMES
+
+	LENGTH_PRIMES_BITS = DEFAULT_PRIME_LENGTH;
+
+	// TODO: Check if the private and public keys exist already
+	
+	generate_key_pair(LENGTH_PRIMES_BITS);
 
 	printf("\n");
 }
