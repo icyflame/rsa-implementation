@@ -7,8 +7,12 @@
 
 #define FILENAME_TEMP_P "temp_p"
 #define FILENAME_TEMP_Q "temp_q"
+#define FILENAME_CIPHERTEXT "ciphertext"
+
 #define FILENAME_PRIVATE_KEY "rsa.private"
 #define FILENAME_PUBLIC_KEY "rsa.public"
+
+#define MIN_PUBLIC_EXPONENT 11
 
 #define TIMESTAMP 1
 #define DEBUG 1
@@ -24,7 +28,7 @@ void log_timestamp(const char * label) {
 	printf ("%s: %s", label, asctime(timeinfo));
 }
 
-#define DEFAULT_PRIME_LENGTH 128
+#define DEFAULT_PRIME_LENGTH 4
 
 using namespace std;
 
@@ -34,7 +38,7 @@ using namespace std;
  */
 void write_random_to_file(const char * filename, int bit_length) {
 	ofstream fout;
-	fout.open(filename, ios::out | ios::app);
+	fout.open(filename, ios::out);
 	fout << 1;
 	for(int i = 1; i < bit_length; ++i) {
 		fout << (rand() % 2);
@@ -98,9 +102,17 @@ void read_private_key_from_file(const char * filename,
 void write_public_key_to_file(mpz_t modulus, long unsigned int public_exponent) {
 	FILE * stream;
 	stream = fopen(FILENAME_PUBLIC_KEY, "w");
+	
+	gmp_fprintf(stream, "%Zx\n%x", modulus, public_exponent);
 
-	// TODO: Use gmp_fprintf to write the modulus and the public exponent to the
-	// file
+	fclose(stream);
+}
+
+void read_public_key_from_file(const char * filename, mpz_t &modulus, mpz_t &public_exponent) {
+	FILE * stream;
+	stream = fopen(filename, "r");
+	gmp_fscanf(stream, "%Zx", modulus);
+	gmp_fscanf(stream, "%Zx", public_exponent);
 
 	fclose(stream);
 }
@@ -161,7 +173,7 @@ void generate_key_pair(int PRIMES_BIT_LENGTH) {
 	// Find public exponent that has gcd 1 with totient
 	log_timestamp("START Find a public exponent");
 
-	unsigned long int public_exponent = 65537;
+	unsigned long int public_exponent = MIN_PUBLIC_EXPONENT;
 
 	while (mpz_gcd_ui(NULL, totient, public_exponent) != 1 && public_exponent > 0) {
 		public_exponent ++;
@@ -200,6 +212,96 @@ void generate_key_pair(int PRIMES_BIT_LENGTH) {
 	mpz_clear(temp_1);
 }
 
+void test_encrypt_integer(long unsigned int message, const char * pubkey_filepath, const char * ciphertext_filepath) {
+	
+	mpz_t modulus, public_exponent, plaintext;
+	mpz_init(modulus);
+	mpz_init(public_exponent);
+	mpz_init(plaintext);
+
+	mpz_set_ui(plaintext, message);
+
+	read_public_key_from_file(pubkey_filepath, modulus, public_exponent);
+
+	FILE * stream = fopen(ciphertext_filepath, "w");
+
+	// Re-using the same variable to store the ciphertext instead of using a new
+	// variable
+	mpz_powm(modulus, plaintext, public_exponent, modulus);
+
+	gmp_fprintf(stream, "%Zx", modulus);
+
+	fclose(stream);
+
+	mpz_clear(modulus);
+	mpz_clear(public_exponent);
+	mpz_clear(plaintext);
+}
+
+void test_decrypt_integer(const char * ciphertext_filepath, const char * private_key_filepath) {
+
+	mpz_t p, q, dp, dq, q_inv;
+	mpz_init(p);
+	mpz_init(q);
+	mpz_init(dp);
+	mpz_init(dq);
+	mpz_init(q_inv);
+
+	// Read the private key from the file
+	read_private_key_from_file(private_key_filepath, p, q, dp, dq, q_inv);
+
+	// Read the ciphertext's integer representation
+	mpz_t ciphertext_integer_rep;
+	mpz_init(ciphertext_integer_rep);
+	FILE * stream = fopen(ciphertext_filepath, "r");
+	gmp_fscanf(stream, "%Zx", ciphertext_integer_rep);
+	fclose(stream);
+
+	// Start the decryption process
+	// As per RSADP: 5.1.2 on RFC 3447
+	log_timestamp("START Decryption according to RFC");
+	
+	mpz_t temp_1, temp_2;
+	mpz_init(temp_1);
+	mpz_init(temp_2);
+
+	mpz_powm(temp_1, ciphertext_integer_rep, dp, p);
+	mpz_powm(temp_2, ciphertext_integer_rep, dq, q);
+
+	mpz_sub(temp_1, temp_1, temp_2);
+	mpz_mul(temp_1, temp_1, q_inv);
+
+	mpz_mod(temp_1, temp_1, p);
+
+	// Now, temp_1 consists h
+	
+	mpz_mul(temp_1, temp_1, q);
+	
+	mpz_t plaintext;
+	mpz_init(plaintext);
+
+	mpz_add(plaintext, temp_2, temp_1);
+
+	mpz_t modulus;
+	mpz_init(modulus);
+	mpz_mul(modulus, p, q);
+	mpz_mod(plaintext, plaintext, modulus);
+
+	gmp_printf("That CT decrypts to: %Zd\n", plaintext);
+
+	log_timestamp("END Decryption according to RFC");
+
+	mpz_init(p);
+	mpz_init(q);
+	mpz_init(dp);
+	mpz_init(dq);
+	mpz_init(q_inv);
+	mpz_init(ciphertext_integer_rep);
+	mpz_init(temp_1);
+	mpz_init(temp_2);
+	mpz_init(plaintext);
+}
+
 // void encrypt_message(mpz_t message, mpz_t modulus, mpz_t public_exponent);
 // void decrypt_message(mpz_t ciphertext, mpz_t modulus, mpz_t
 // private_exponent);
@@ -220,7 +322,11 @@ int main() {
 
 	log_timestamp("Starting the generation of the keypair");
 
-	generate_key_pair(LENGTH_PRIMES_BITS);
+	// generate_key_pair(LENGTH_PRIMES_BITS);
+	
+	test_encrypt_integer(4, FILENAME_PUBLIC_KEY, FILENAME_CIPHERTEXT);
+
+	// test_decrypt_integer(FILENAME_CIPHERTEXT, FILENAME_PRIVATE_KEY);
 
 	printf("\n");
 }
