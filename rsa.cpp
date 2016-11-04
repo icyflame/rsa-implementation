@@ -36,6 +36,7 @@ void write_random_to_file(const char * filename, int bit_length) {
  * file.
  * Resource:
  * https://en.wikipedia.org/wiki/RSA_(cryptosystem)#Using_the_Chinese_remainder_algorithm
+ * RFC 3447 - Section 3.2 - 2nd representation
  */
 void write_private_key_to_file(mpz_t &p, mpz_t &q, mpz_t &private_exponent) {
 	FILE * stream;
