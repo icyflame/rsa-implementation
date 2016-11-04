@@ -16,7 +16,9 @@
 
 #define TIMESTAMP 1
 #define DEBUG 1
-#define log_debug gmp_printf
+#define VERBOSE 1
+#define log_debug if (DEBUG) gmp_printf
+#define log_verbose if (VERBOSE) gmp_printf
 
 void log_timestamp(const char * label) {
 	if (!TIMESTAMP) return;
@@ -223,11 +225,16 @@ void test_encrypt_integer(long unsigned int message, const char * pubkey_filepat
 
 	read_public_key_from_file(pubkey_filepath, modulus, public_exponent);
 
+	log_verbose("Modulus: %Zd\n", modulus);
+	log_verbose("Public exponent: %Zd", public_exponent);
+
 	FILE * stream = fopen(ciphertext_filepath, "w");
 
 	// Re-using the same variable to store the ciphertext instead of using a new
 	// variable
 	mpz_powm(modulus, plaintext, public_exponent, modulus);
+
+	log_verbose("Ciphertext: %Zd", modulus);
 
 	gmp_fprintf(stream, "%Zx", modulus);
 
@@ -324,9 +331,9 @@ int main() {
 
 	// generate_key_pair(LENGTH_PRIMES_BITS);
 	
-	test_encrypt_integer(4, FILENAME_PUBLIC_KEY, FILENAME_CIPHERTEXT);
+	// test_encrypt_integer(4, FILENAME_PUBLIC_KEY, FILENAME_CIPHERTEXT);
 
-	// test_decrypt_integer(FILENAME_CIPHERTEXT, FILENAME_PRIVATE_KEY);
+	test_decrypt_integer(FILENAME_CIPHERTEXT, FILENAME_PRIVATE_KEY);
 
 	printf("\n");
 }
