@@ -14,8 +14,8 @@
 
 ### Parts of the project
 
-- [ ] Key generation
-- [ ] File format to store the keypair (and share the public key)
+- [x] Key generation
+- [x] File format to store the keypair (and share the public key)
 - [ ] Conversion of message to something that can be raised to a power and from
 		the decrypted number back to the message
 
