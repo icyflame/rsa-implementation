@@ -10,10 +10,21 @@
 #define FILENAME_PRIVATE_KEY "rsa.private"
 #define FILENAME_PUBLIC_KEY "rsa.public"
 
+#define TIMESTAMP 1
 #define DEBUG 1
 #define log_debug gmp_printf
 
-#define DEFAULT_PRIME_LENGTH 512
+void log_timestamp(const char * label) {
+	if (!TIMESTAMP) return;
+	time_t rawtime;
+	struct tm * timeinfo;
+
+	time (&rawtime);
+	timeinfo = localtime (&rawtime);
+	printf ("%s: %s", label, asctime(timeinfo));
+}
+
+#define DEFAULT_PRIME_LENGTH 128
 
 using namespace std;
 
@@ -67,16 +78,19 @@ void write_private_key_to_file(mpz_t &p, mpz_t &q, mpz_t &private_exponent) {
  * Get the stored private key parameters from the private key file
  */
 void read_private_key_from_file(const char * filename, 
-																mpz_t &p, 
-																mpz_t &q, 
-																mpz_t &private_exponent, 
-																mpz_t &dp, 
-																mpz_t &dq, 
-																mpz_t &g_inv) {
+		mpz_t &p, 
+		mpz_t &q, 
+		mpz_t &dp, 
+		mpz_t &dq, 
+		mpz_t &q_inv) {
 	FILE * stream;
 	stream = fopen(filename, "r");
 
-	// TODO: Use gmp_fscanf
+	gmp_fscanf(stream, "%Zx", p);
+	gmp_fscanf(stream, "%Zx", q);
+	gmp_fscanf(stream, "%Zx", dp);
+	gmp_fscanf(stream, "%Zx", dq);
+	gmp_fscanf(stream, "%Zx", q_inv);
 
 	fclose(stream);
 }
@@ -92,13 +106,17 @@ void write_public_key_to_file(mpz_t modulus, long unsigned int public_exponent) 
 }
 
 void generate_key_pair(int PRIMES_BIT_LENGTH) {
-	
+
 	mpz_t temp_1, prime_p, prime_q, totient, private_exponent;
 
 	// Generate random P and Q values
-	
+	//
+	log_timestamp("START Generation random numbers");
+
 	write_random_to_file(FILENAME_TEMP_P, PRIMES_BIT_LENGTH);
 	write_random_to_file(FILENAME_TEMP_Q, PRIMES_BIT_LENGTH);
+
+	log_timestamp("END Generation of random numbers");
 
 	mpz_init(prime_p);
 	mpz_init(prime_q);
@@ -107,6 +125,8 @@ void generate_key_pair(int PRIMES_BIT_LENGTH) {
 
 	// Read the random temp values from the file
 	// Find the next smallest prime P and Q
+	
+	log_timestamp("START Find next prime of random numbers");
 
 	FILE * stream;
 
@@ -120,6 +140,8 @@ void generate_key_pair(int PRIMES_BIT_LENGTH) {
 	fclose(stream);
 	mpz_nextprime(prime_q, temp_1);
 
+	log_timestamp("END Find next prime of random numbers");
+
 	// TODO: Find a safe prime
 	// A safe prime is one which is equal to 2*p + 1 where p is also a prime
 	// number.
@@ -129,7 +151,7 @@ void generate_key_pair(int PRIMES_BIT_LENGTH) {
 	mpz_init(totient);
 
 	mpz_set_ui(totient, 1);
-	
+
 	mpz_sub_ui(temp_1, prime_p, 1);
 	mpz_mul(totient, totient, temp_1);
 
@@ -137,30 +159,39 @@ void generate_key_pair(int PRIMES_BIT_LENGTH) {
 	mpz_mul(totient, totient, temp_1);
 
 	// Find public exponent that has gcd 1 with totient
+	log_timestamp("START Find a public exponent");
 
 	unsigned long int public_exponent = 65537;
 
 	while (mpz_gcd_ui(NULL, totient, public_exponent) != 1 && public_exponent > 0) {
 		public_exponent ++;
 	}
+	log_timestamp("END Find a public exponent");
 
 	log_debug("Public exponent: %lu\n", public_exponent);
 
 	// Calculate the private exponent
 
+	log_timestamp("START Find the private exponent (invert public exponent)");
 	mpz_init(private_exponent);
 
 	mpz_set_ui(totient, public_exponent);
 
 	mpz_invert(private_exponent, temp_1, totient);
 
+	log_timestamp("END Find the private exponent (invert public exponent)");
 	log_debug("Private exponent: %Zd", private_exponent);
 
 	// Calculate the modulus, to put inside the public key file
 	mpz_mul(temp_1, prime_p, prime_q);
 
+
+	log_timestamp("START Write pub key to file");
 	write_public_key_to_file(temp_1, public_exponent);
+	log_timestamp("END Write pub key to file");
+	log_timestamp("START Write private key to file");
 	write_private_key_to_file(prime_p, prime_q, private_exponent);
+	log_timestamp("END Write private key to file");
 
 	mpz_clear(private_exponent);
 	mpz_clear(totient);
@@ -186,7 +217,9 @@ int main() {
 	LENGTH_PRIMES_BITS = DEFAULT_PRIME_LENGTH;
 
 	// TODO: Check if the private and public keys exist already
-	
+
+	log_timestamp("Starting the generation of the keypair");
+
 	generate_key_pair(LENGTH_PRIMES_BITS);
 
 	printf("\n");
