@@ -12,7 +12,8 @@
 #define FILENAME_PRIVATE_KEY "rsa.private"
 #define FILENAME_PUBLIC_KEY "rsa.public"
 
-#define MIN_PUBLIC_EXPONENT 11
+#define MIN_PUBLIC_EXPONENT 65537
+#define DEFAULT_PRIME_LENGTH 64
 
 #define TIMESTAMP 1
 #define DEBUG 1
@@ -30,7 +31,6 @@ void log_timestamp(const char * label) {
 	printf ("%s: %s", label, asctime(timeinfo));
 }
 
-#define DEFAULT_PRIME_LENGTH 4
 
 using namespace std;
 
@@ -337,7 +337,7 @@ int main() {
 
 	generate_key_pair(LENGTH_PRIMES_BITS);
 	
-	test_encrypt_integer(4, FILENAME_PUBLIC_KEY, FILENAME_CIPHERTEXT);
+	test_encrypt_integer(9514585682, FILENAME_PUBLIC_KEY, FILENAME_CIPHERTEXT);
 
 	test_decrypt_integer(FILENAME_CIPHERTEXT, FILENAME_PRIVATE_KEY);
 
