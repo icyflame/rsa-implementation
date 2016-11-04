@@ -7,6 +7,11 @@
 
 #define FILENAME_TEMP_P "temp_p"
 #define FILENAME_TEMP_Q "temp_q"
+#define FILENAME_PRIVATE_KEY "rsa.private"
+#define FILENAME_PUBLIC_KEY "rsa.public"
+
+#define DEBUG 1
+#define log_debug gmp_printf
 
 #define DEFAULT_PRIME_LENGTH 512
 
@@ -24,6 +29,55 @@ void write_random_to_file(const char * filename, int bit_length) {
 		fout << (rand() % 2);
 	}
 	fout.close();
+}
+
+/**
+ * Store the values of p, q, Dp, Dq and q_inv (mod p) in the private key
+ * file.
+ * Resource:
+ * https://en.wikipedia.org/wiki/RSA_(cryptosystem)#Using_the_Chinese_remainder_algorithm
+ */
+void write_private_key_to_file(mpz_t &p, mpz_t &q, mpz_t &private_exponent) {
+	FILE * stream;
+	stream = fopen(FILENAME_PRIVATE_KEY, "w");
+
+	gmp_fprintf(stream, "%Zx\n%Zx\n", p, q);
+
+	mpz_t temp;
+	mpz_init(temp);
+
+	mpz_sub_ui(temp, p, 1);
+	mpz_mod(temp, private_exponent, temp);
+	gmp_fprintf(stream, "%Zx\n", temp);
+
+	mpz_sub_ui(temp, q, 1);
+	mpz_mod(temp, private_exponent, temp);
+	gmp_fprintf(stream, "%Zx\n", temp);
+
+	mpz_invert(temp, q, p);
+	gmp_fprintf(stream, "%Zx\n", temp);
+
+	fclose(stream);
+
+	mpz_clear(temp);
+}
+
+/**
+ * Get the stored private key parameters from the private key file
+ */
+void read_private_key_from_file(const char * filename, 
+																mpz_t &p, 
+																mpz_t &q, 
+																mpz_t &private_exponent, 
+																mpz_t &dp, 
+																mpz_t &dq, 
+																mpz_t &g_inv) {
+	FILE * stream;
+	stream = fopen(filename, "r");
+
+	// TODO: Use gmp_fscanf
+
+	fclose(stream);
 }
 
 void generate_key_pair(int PRIMES_BIT_LENGTH) {
@@ -55,6 +109,10 @@ void generate_key_pair(int PRIMES_BIT_LENGTH) {
 	fclose(stream);
 	mpz_nextprime(prime_q, temp_1);
 
+	// TODO: Find a safe prime
+	// A safe prime is one which is equal to 2*p + 1 where p is also a prime
+	// number.
+
 	// Calculate the totient
 
 	mpz_init(totient);
@@ -75,7 +133,7 @@ void generate_key_pair(int PRIMES_BIT_LENGTH) {
 		public_exponent ++;
 	}
 
-	printf("Public exponent: %lu\n", public_exponent);
+	log_debug("Public exponent: %lu\n", public_exponent);
 
 	// Calculate the private exponent
 
@@ -85,7 +143,9 @@ void generate_key_pair(int PRIMES_BIT_LENGTH) {
 
 	mpz_invert(private_exponent, temp_1, totient);
 
-	gmp_printf("Private exponent: %Zd", private_exponent);
+	log_debug("Private exponent: %Zd", private_exponent);
+
+	write_private_key_to_file(prime_p, prime_q, private_exponent);
 
 	mpz_clear(private_exponent);
 	mpz_clear(totient);
@@ -93,6 +153,10 @@ void generate_key_pair(int PRIMES_BIT_LENGTH) {
 	mpz_clear(prime_q);
 	mpz_clear(temp_1);
 }
+
+// void encrypt_message(mpz_t message, mpz_t modulus, mpz_t public_exponent);
+// void decrypt_message(mpz_t ciphertext, mpz_t modulus, mpz_t
+// private_exponent);
 
 int main() {
 
