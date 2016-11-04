@@ -154,6 +154,10 @@ void generate_key_pair(int PRIMES_BIT_LENGTH) {
 	fclose(stream);
 	mpz_nextprime(prime_q, temp_1);
 
+	while (mpz_cmp(prime_p, prime_q) == 0) {
+		mpz_nextprime(prime_q, prime_q);
+	}
+
 	log_timestamp("END Find next prime of random numbers");
 
 	// TODO: Find a safe prime
@@ -189,7 +193,7 @@ void generate_key_pair(int PRIMES_BIT_LENGTH) {
 	log_timestamp("START Find the private exponent (invert public exponent)");
 	mpz_init(private_exponent);
 
-	mpz_set_ui(totient, public_exponent);
+	mpz_set_ui(temp_1, public_exponent);
 
 	mpz_invert(private_exponent, temp_1, totient);
 
@@ -256,6 +260,8 @@ void test_decrypt_integer(const char * ciphertext_filepath, const char * private
 
 	// Read the private key from the file
 	read_private_key_from_file(private_key_filepath, p, q, dp, dq, q_inv);
+
+	log_verbose("P: %Zd\nQ: %Zd\ndp: %Zd\ndq: %Zd\nQ_inv: %Zd", p, q, dp, dq, q_inv);
 
 	// Read the ciphertext's integer representation
 	mpz_t ciphertext_integer_rep;
@@ -329,9 +335,9 @@ int main() {
 
 	log_timestamp("Starting the generation of the keypair");
 
-	// generate_key_pair(LENGTH_PRIMES_BITS);
+	generate_key_pair(LENGTH_PRIMES_BITS);
 	
-	// test_encrypt_integer(4, FILENAME_PUBLIC_KEY, FILENAME_CIPHERTEXT);
+	test_encrypt_integer(4, FILENAME_PUBLIC_KEY, FILENAME_CIPHERTEXT);
 
 	test_decrypt_integer(FILENAME_CIPHERTEXT, FILENAME_PRIVATE_KEY);
 
