@@ -80,6 +80,16 @@ void read_private_key_from_file(const char * filename,
 	fclose(stream);
 }
 
+void write_public_key_to_file(mpz_t modulus, long unsigned int public_exponent) {
+	FILE * stream;
+	stream = fopen(FILENAME_PUBLIC_KEY, "w");
+
+	// TODO: Use gmp_fprintf to write the modulus and the public exponent to the
+	// file
+
+	fclose(stream);
+}
+
 void generate_key_pair(int PRIMES_BIT_LENGTH) {
 	
 	mpz_t temp_1, prime_p, prime_q, totient, private_exponent;
@@ -145,6 +155,10 @@ void generate_key_pair(int PRIMES_BIT_LENGTH) {
 
 	log_debug("Private exponent: %Zd", private_exponent);
 
+	// Calculate the modulus, to put inside the public key file
+	mpz_mul(temp_1, prime_p, prime_q);
+
+	write_public_key_to_file(temp_1, public_exponent);
 	write_private_key_to_file(prime_p, prime_q, private_exponent);
 
 	mpz_clear(private_exponent);
