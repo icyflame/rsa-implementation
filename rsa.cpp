@@ -3,7 +3,19 @@
 #include <cstdlib>
 #include <ctime>
 #include <stdio.h>
+#include <sys/stat.h>
+#include <string.h>
 #include "gmp/gmp.h"
+
+#define OPTION_HELP_1 "--help"
+#define OPTION_HELP_2 "help"
+#define OPTION_GENERATE_1 "generate"
+#define OPTION_GENERATE_2 "keygen"
+#define OPTION_ENCRYPT "encrypt"
+#define OPTION_DECRYPT "decrypt"
+
+#define ARGS_BITLENGTH "-b"
+#define ARGS_FILENAME "-f"
 
 #define FILENAME_TEMP_P "temp_p"
 #define FILENAME_TEMP_Q "temp_q"
@@ -13,13 +25,21 @@
 #define FILENAME_PUBLIC_KEY "rsa.public"
 
 #define MIN_PUBLIC_EXPONENT 65537
-#define DEFAULT_PRIME_LENGTH 64
 
+#define DEFAULT_PRIME_LENGTH 64
+#define DEFAULT_FILENAME "rsa"
+
+#define INFO 1
 #define TIMESTAMP 1
 #define DEBUG 1
 #define VERBOSE 1
 #define log_debug if (DEBUG) gmp_printf
+#define log_info if (INFO) printf
 #define log_verbose if (VERBOSE) gmp_printf
+
+/////////////////////////////////////////////
+// HELPER FUNCTIONS
+////////////////////////////////////////////
 
 void log_timestamp(const char * label) {
 	if (!TIMESTAMP) return;
@@ -29,6 +49,11 @@ void log_timestamp(const char * label) {
 	time (&rawtime);
 	timeinfo = localtime (&rawtime);
 	printf ("%s: %s", label, asctime(timeinfo));
+}
+
+inline bool exists_test3 (const std::string& name) {
+	struct stat buffer;
+	return (stat (name.c_str(), &buffer) == 0); 
 }
 
 
@@ -55,9 +80,12 @@ void write_random_to_file(const char * filename, int bit_length) {
  * https://en.wikipedia.org/wiki/RSA_(cryptosystem)#Using_the_Chinese_remainder_algorithm
  * RFC 3447 - Section 3.2 - 2nd representation
  */
-void write_private_key_to_file(mpz_t &p, mpz_t &q, mpz_t &private_exponent) {
+void write_private_key_to_file(mpz_t &p, mpz_t &q, mpz_t &private_exponent, const char * filename) {
 	FILE * stream;
-	stream = fopen(FILENAME_PRIVATE_KEY, "w");
+	char * priv_key_filename = new char[strlen(filename)];
+	strcpy(priv_key_filename, filename);
+	strcat(priv_key_filename, ".private");
+	stream = fopen(priv_key_filename, "w");
 
 	gmp_fprintf(stream, "%Zx\n%Zx\n", p, q);
 
@@ -76,6 +104,7 @@ void write_private_key_to_file(mpz_t &p, mpz_t &q, mpz_t &private_exponent) {
 	gmp_fprintf(stream, "%Zx\n", temp);
 
 	fclose(stream);
+	free(priv_key_filename);
 
 	mpz_clear(temp);
 }
@@ -101,12 +130,16 @@ void read_private_key_from_file(const char * filename,
 	fclose(stream);
 }
 
-void write_public_key_to_file(mpz_t modulus, long unsigned int public_exponent) {
+void write_public_key_to_file(mpz_t modulus, long unsigned int public_exponent, const char * filename) {
 	FILE * stream;
-	stream = fopen(FILENAME_PUBLIC_KEY, "w");
+	char * pub_key_filename = new char[strlen(filename)];
+	strcpy(pub_key_filename, filename);
+	strcat(pub_key_filename, ".public");
+	stream = fopen(pub_key_filename, "w");
 	
 	gmp_fprintf(stream, "%Zx\n%x", modulus, public_exponent);
 
+	free(pub_key_filename);
 	fclose(stream);
 }
 
@@ -119,7 +152,7 @@ void read_public_key_from_file(const char * filename, mpz_t &modulus, mpz_t &pub
 	fclose(stream);
 }
 
-void generate_key_pair(int PRIMES_BIT_LENGTH) {
+void generate_key_pair(int PRIMES_BIT_LENGTH, const char * filename) {
 
 	mpz_t temp_1, prime_p, prime_q, totient, private_exponent;
 
@@ -186,7 +219,7 @@ void generate_key_pair(int PRIMES_BIT_LENGTH) {
 	}
 	log_timestamp("END Find a public exponent");
 
-	log_debug("Public exponent: %lu\n", public_exponent);
+	log_verbose("Public exponent: %lu\n", public_exponent);
 
 	// Calculate the private exponent
 
@@ -198,17 +231,17 @@ void generate_key_pair(int PRIMES_BIT_LENGTH) {
 	mpz_invert(private_exponent, temp_1, totient);
 
 	log_timestamp("END Find the private exponent (invert public exponent)");
-	log_debug("Private exponent: %Zd", private_exponent);
+	log_verbose("Private exponent: %Zd", private_exponent);
 
 	// Calculate the modulus, to put inside the public key file
 	mpz_mul(temp_1, prime_p, prime_q);
 
 
 	log_timestamp("START Write pub key to file");
-	write_public_key_to_file(temp_1, public_exponent);
+	write_public_key_to_file(temp_1, public_exponent, filename);
 	log_timestamp("END Write pub key to file");
 	log_timestamp("START Write private key to file");
-	write_private_key_to_file(prime_p, prime_q, private_exponent);
+	write_private_key_to_file(prime_p, prime_q, private_exponent, filename);
 	log_timestamp("END Write private key to file");
 
 	mpz_clear(private_exponent);
@@ -315,11 +348,22 @@ void test_decrypt_integer(const char * ciphertext_filepath, const char * private
 	mpz_init(plaintext);
 }
 
+void printHelp() {
+	printf("\n----------------------------------");
+	printf("\nRSA Implementation - Using GNU GMP");
+	printf("\nHelp");
+	printf("\nrsa keygen -b 512 -f filename");
+	printf("\nrsa generate -b 512 -f filename");
+	printf("\nrsa encrypt -f filename -key siddharth.pub");
+	printf("\nrsa decrypt -f ciphertext -key my.private.key");
+	printf("\n----------------------------------");
+}
+
 // void encrypt_message(mpz_t message, mpz_t modulus, mpz_t public_exponent);
 // void decrypt_message(mpz_t ciphertext, mpz_t modulus, mpz_t
 // private_exponent);
 
-int main() {
+int main(int argc, char **ARGV) {
 
 	// INIT
 
@@ -331,15 +375,83 @@ int main() {
 
 	LENGTH_PRIMES_BITS = DEFAULT_PRIME_LENGTH;
 
-	// TODO: Check if the private and public keys exist already
-
-	log_timestamp("Starting the generation of the keypair");
-
-	generate_key_pair(LENGTH_PRIMES_BITS);
+	// Command line argument parsing
+	int matched = 0;
 	
-	test_encrypt_integer(9514585682, FILENAME_PUBLIC_KEY, FILENAME_CIPHERTEXT);
+	if (argc == 1) {
+		printf("ERROR! You must use one of the available options.");
+		printHelp();
+		return 1;
+	}
 
-	test_decrypt_integer(FILENAME_CIPHERTEXT, FILENAME_PRIVATE_KEY);
+	if (strcmp(ARGV[1], OPTION_HELP_1) == 0 || strcmp(ARGV[1], OPTION_HELP_2) == 0) {
+		matched = 1;
+		printHelp();
+	}
+
+	if (strcmp(ARGV[1], OPTION_GENERATE_1) == 0 || strcmp(ARGV[1], OPTION_GENERATE_2) == 0) {
+		matched = 1;
+		printf("\nWe will generate a set of keys now");
+		int bitlength = DEFAULT_PRIME_LENGTH;
+
+		char * keys_filename= new char[strlen(DEFAULT_FILENAME)];
+		strcpy(keys_filename, DEFAULT_FILENAME);
+
+		if (argc == 4 || argc == 6) {
+			// More options may have been passed
+			if (strcmp(ARGV[2], ARGS_BITLENGTH) == 0) {
+				bitlength = atoi(ARGV[3]);
+			}
+
+			if (strcmp(ARGV[2], ARGS_FILENAME) == 0) {
+				free(keys_filename);
+				keys_filename = new char[strlen(ARGV[3])];
+				strcpy(keys_filename, ARGV[3]);
+			}
+
+			if (argc == 6) {
+				if (strcmp(ARGV[4], ARGS_FILENAME) == 0) {
+					free(keys_filename);
+					keys_filename = new char[strlen(ARGV[5])];
+					strcpy(keys_filename, ARGV[5]);
+				}
+
+				if (strcmp(ARGV[4], ARGS_BITLENGTH) == 0) {
+					bitlength = atoi(ARGV[5]);
+				}
+			}
+		}
+		log_info("Generating keys with prime bitlength %d and name %s", bitlength, keys_filename);
+		generate_key_pair(bitlength, keys_filename);
+	}
+
+	if (strcmp(ARGV[1], OPTION_ENCRYPT) == 0) {
+		matched = 1;
+		if (argc >= 3) {
+			printf("\nWe can try to encrypt the file now");
+			// TODO: Encrypt
+			// ARGV[2] is the file to be encrypted
+			// ARGV[3] is the public key that we have to use
+		}
+	}
+
+	if (strcmp(ARGV[1], OPTION_DECRYPT) == 0) {
+		matched = 1;
+		if (argc >= 3) {
+			printf("\nWe can try decrypt the ciphertext now");
+			// TODO: Decrypt
+			// ARGV[2] is the ciphertext
+			// ARGV[3] is the private key file path
+		}
+	}
+
+	if (!matched) {
+		printf("\nERROR! Invalid option. Run `rsa --help` for help text");
+		return 1;
+	}
 
 	printf("\n");
+
+	return 0;
+
 }
