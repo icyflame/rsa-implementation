@@ -359,6 +359,65 @@ void printHelp() {
 	printf("\n----------------------------------");
 }
 
+void convert_string_to_integer(const char * plaintext, mpz_t &string_representation) {
+	// Find the string size
+	unsigned long int lSize = strlen(plaintext);
+
+	mpz_set_ui(string_representation, 0);
+
+	mpz_t temp;
+	mpz_init(temp);
+	
+	for(int i = 0; i < lSize; ++i) {
+		char this_char = plaintext[i];
+		mpz_ui_pow_ui(temp, 256, lSize - i - 1);
+		mpz_mul_ui(temp, temp, this_char);
+		mpz_add(string_representation, string_representation, temp);
+	}
+
+	log_verbose("\nInteger repesentation of %s is: %Zd", plaintext, string_representation);
+
+	mpz_clear(temp);
+}
+
+void convert_file_to_integer(const char * filepath, mpz_t &file_representation) {
+	if (!file_exists(string(filepath))) {
+		return;
+	}
+	FILE * stream = fopen(filepath, "rb");
+	char * values;
+
+	// Find the file size
+	fseek (stream, 0, SEEK_END);
+	unsigned long int lSize = ftell (stream);
+	rewind (stream);
+
+	values = new char[lSize * sizeof(char)];
+	size_t result = fread(values, 1, lSize, stream);
+
+	if (result != lSize) {
+		printf("ERROR! File couldn't be converted to it's integer representation.");
+		return;
+	}
+
+	mpz_set_ui(file_representation, 0);
+
+	mpz_t temp;
+	mpz_init(temp);
+	
+	for(int i = 0; i < lSize; ++i) {
+		char this_char = values[i];
+		mpz_ui_pow_ui(temp, 256, lSize - i - 1);
+		mpz_mul_ui(temp, temp, this_char);
+		mpz_add(file_representation, file_representation, temp);
+	}
+
+	log_verbose("\nInteger repesentation of that file is: %Zd", file_representation);
+
+	mpz_clear(temp);
+	fclose(stream);
+}
+
 // void encrypt_message(mpz_t message, mpz_t modulus, mpz_t public_exponent);
 // void decrypt_message(mpz_t ciphertext, mpz_t modulus, mpz_t
 // private_exponent);
@@ -374,6 +433,15 @@ int main(int argc, char **ARGV) {
 	// DECIDE BIT LENGTH OF THE PRIMES
 
 	LENGTH_PRIMES_BITS = DEFAULT_PRIME_LENGTH;
+
+	// TESTING 
+
+	mpz_t file_rep;
+	mpz_init(file_rep);
+
+	convert_file_to_integer(ARGV[1], file_rep);
+	convert_string_to_integer(basename(ARGV[1]), file_rep);
+
 
 	// Command line argument parsing
 	int matched = 0;
