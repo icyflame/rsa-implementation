@@ -13,6 +13,8 @@
 #define OPTION_GENERATE_2 "keygen"
 #define OPTION_ENCRYPT "encrypt"
 #define OPTION_DECRYPT "decrypt"
+#define OPTION_CONVERT_INT_TO_STRING "int2string"
+#define OPTION_CONVERT_STRING_TO_INT "string2int"
 
 #define ARGS_BITLENGTH "-b"
 #define ARGS_FILENAME "-f"
@@ -34,9 +36,9 @@
 #define TIMESTAMP 1
 #define DEBUG 1
 #define VERBOSE 1
-#define log_debug if (DEBUG) gmp_printf
-#define log_info if (INFO) printf
-#define log_verbose if (VERBOSE) gmp_printf
+#define log_debug if (DEBUG) printf("\n"); gmp_printf
+#define log_info if (INFO) printf("\n"); printf
+#define log_verbose if (VERBOSE) printf("\n"); gmp_printf
 
 /////////////////////////////////////////////
 // HELPER FUNCTIONS
@@ -49,7 +51,7 @@ void log_timestamp(const char * label) {
 
 	time (&rawtime);
 	timeinfo = localtime (&rawtime);
-	printf ("%s: %s", label, asctime(timeinfo));
+	printf ("\n%s: %s", label, asctime(timeinfo));
 }
 
 inline bool file_exists (const std::string& name) {
@@ -356,12 +358,16 @@ void printHelp() {
 	printf("\nrsa generate -b 512 -f filename");
 	printf("\nrsa encrypt -f filename -key siddharth.pub");
 	printf("\nrsa decrypt -f ciphertext -key my.private.key");
+	printf("\nTESTING OPTIONS");
+	printf("\nrsa int2string 7881696744884301945 8");
+	printf("\nrsa convert string2int \"main2.py\"");
 	printf("\n----------------------------------");
 }
 
-void convert_string_to_integer(const char * plaintext, mpz_t &string_representation) {
+void convert_string_to_integer(const char * plaintext, mpz_t &string_representation, mpz_t &octet_len) {
 	// Find the string size
 	unsigned long int lSize = strlen(plaintext);
+	mpz_set_ui(octet_len, lSize);
 
 	mpz_set_ui(string_representation, 0);
 
@@ -375,12 +381,12 @@ void convert_string_to_integer(const char * plaintext, mpz_t &string_representat
 		mpz_add(string_representation, string_representation, temp);
 	}
 
-	log_verbose("\nInteger repesentation of %s is: %Zd", plaintext, string_representation);
+	log_verbose("\nInteger repesentation of %s is: %Zd\nwith octet length of %Zd", plaintext, string_representation, octet_len);
 
 	mpz_clear(temp);
 }
 
-void convert_file_to_integer(const char * filepath, mpz_t &file_representation) {
+void convert_file_to_integer(const char * filepath, mpz_t &file_representation, mpz_t &octet_len) {
 	if (!file_exists(string(filepath))) {
 		return;
 	}
@@ -401,6 +407,7 @@ void convert_file_to_integer(const char * filepath, mpz_t &file_representation) 
 	}
 
 	mpz_set_ui(file_representation, 0);
+	mpz_set_ui(octet_len, lSize);
 
 	mpz_t temp;
 	mpz_init(temp);
@@ -412,11 +419,57 @@ void convert_file_to_integer(const char * filepath, mpz_t &file_representation) 
 		mpz_add(file_representation, file_representation, temp);
 	}
 
-	log_verbose("\nInteger repesentation of that file is: %Zd", file_representation);
+	log_verbose("\nInteger repesentation of that file is: %Zd\nwith octet length of %Zd", file_representation, octet_len);
 
 	mpz_clear(temp);
 	fclose(stream);
 }
+
+char * convert_integer_to_string(mpz_t &int_rep, unsigned long int octet_len) {
+	char * string_rep = new char[(octet_len+1) * sizeof(char)];
+
+	log_timestamp("START Converting the given integer to it's octet string representation");
+
+	mpz_t divisor, remainder;
+	mpz_init(divisor);
+	mpz_init(remainder);
+
+	mpz_set(divisor, int_rep);
+
+	mpz_t OCTET_BASE;
+	mpz_init(OCTET_BASE);
+	mpz_set_ui(OCTET_BASE, 256);
+
+	string_rep[octet_len] = '\0';
+	--octet_len;
+	
+	while(mpz_cmp_ui(int_rep, 0) > 0 && octet_len >= 0) {
+		string_rep[octet_len--] = (char) mpz_fdiv_qr_ui(int_rep, remainder, int_rep, 256);
+		log_verbose("Integer representation of this character: %u, %c; Remainder: %Zd", string_rep[octet_len+1], string_rep[octet_len+1], remainder);
+	}
+
+	log_verbose("Integer rep now: %Zd", int_rep);
+	log_verbose("Octet length now: %d", octet_len);
+
+	log_verbose("\nGiven integer represents the string %s", string_rep);
+
+	mpz_clear(divisor);
+	mpz_clear(remainder);
+	
+	return string_rep;
+}
+
+char * convert_integer_to_string(unsigned long int int_rep, unsigned long int octet_len) {
+	mpz_t int_rep_gmp;
+	mpz_init(int_rep_gmp);
+	mpz_set_ui(int_rep_gmp, int_rep);
+	char * result = convert_integer_to_string(int_rep_gmp, octet_len);
+	mpz_clear(int_rep_gmp);
+	return result;
+}
+
+//void convert_integer_to_file(mpz_t &file_representation, mpz_t &filename_representation) {
+//}
 
 // void encrypt_message(mpz_t message, mpz_t modulus, mpz_t public_exponent);
 // void decrypt_message(mpz_t ciphertext, mpz_t modulus, mpz_t
@@ -433,15 +486,6 @@ int main(int argc, char **ARGV) {
 	// DECIDE BIT LENGTH OF THE PRIMES
 
 	LENGTH_PRIMES_BITS = DEFAULT_PRIME_LENGTH;
-
-	// TESTING 
-
-	mpz_t file_rep;
-	mpz_init(file_rep);
-
-	convert_file_to_integer(ARGV[1], file_rep);
-	convert_string_to_integer(basename(ARGV[1]), file_rep);
-
 
 	// Command line argument parsing
 	int matched = 0;
@@ -593,6 +637,27 @@ int main(int argc, char **ARGV) {
 				// filepath
 			}
 		}
+	}
+
+	if (strcmp(ARGV[1], OPTION_CONVERT_INT_TO_STRING) == 0 && argc == 4) {
+		matched = 1;
+		char * end;
+		mpz_t int_rep;
+		mpz_init(int_rep);
+		gmp_sscanf(ARGV[2], "%Zd", int_rep);
+		unsigned long int octet_len = atoi(ARGV[3]);
+		convert_integer_to_string(int_rep, octet_len);
+		mpz_clear(int_rep);
+	}
+
+	if (strcmp(ARGV[1], OPTION_CONVERT_STRING_TO_INT) == 0 && argc == 3) {
+		matched = 1;
+		mpz_t rep, octet_len;
+		mpz_init(rep);
+		mpz_init(octet_len);
+		convert_string_to_integer(ARGV[2], rep, octet_len);
+		mpz_clear(rep);
+		mpz_clear(octet_len);
 	}
 
 	if (!matched) {
