@@ -2,5 +2,5 @@
 *.swp
 *~
 temp_*
-rsa.private
-rsa.public
+*.private
+*.public
