@@ -16,6 +16,7 @@
 
 #define ARGS_BITLENGTH "-b"
 #define ARGS_FILENAME "-f"
+#define ARGS_KEY "-k"
 
 #define FILENAME_TEMP_P "temp_p"
 #define FILENAME_TEMP_Q "temp_q"
@@ -51,7 +52,7 @@ void log_timestamp(const char * label) {
 	printf ("%s: %s", label, asctime(timeinfo));
 }
 
-inline bool exists_test3 (const std::string& name) {
+inline bool file_exists (const std::string& name) {
 	struct stat buffer;
 	return (stat (name.c_str(), &buffer) == 0); 
 }
@@ -350,8 +351,7 @@ void test_decrypt_integer(const char * ciphertext_filepath, const char * private
 
 void printHelp() {
 	printf("\n----------------------------------");
-	printf("\nRSA Implementation - Using GNU GMP");
-	printf("\nHelp");
+	printf("\nRSA Implementation - Using GNU GMP\n\n");
 	printf("\nrsa keygen -b 512 -f filename");
 	printf("\nrsa generate -b 512 -f filename");
 	printf("\nrsa encrypt -f filename -key siddharth.pub");
@@ -421,32 +421,114 @@ int main(int argc, char **ARGV) {
 				}
 			}
 		}
-		log_info("Generating keys with prime bitlength %d and name %s", bitlength, keys_filename);
+		log_info("\nGenerating keys with prime bitlength %d and name %s", bitlength, keys_filename);
 		generate_key_pair(bitlength, keys_filename);
 	}
 
 	if (strcmp(ARGV[1], OPTION_ENCRYPT) == 0) {
-		matched = 1;
-		if (argc >= 3) {
-			printf("\nWe can try to encrypt the file now");
-			// TODO: Encrypt
-			// ARGV[2] is the file to be encrypted
-			// ARGV[3] is the public key that we have to use
+		if (argc == 4 || argc == 6) {
+			matched = 1;
+			// Check that atleast one option is the file to encrypt
+			if (strcmp(ARGV[2], ARGS_FILENAME) != 0 && (argc > 4 ? strcmp(ARGV[4], ARGS_FILENAME) != 0 : 0)) {
+				matched = 0;
+			} else {
+				printf("\nWe can try to encrypt the file now");
+				char * pubkey_filename = new char[strlen(DEFAULT_FILENAME)];
+				strcpy(pubkey_filename, DEFAULT_FILENAME);
+				strcat(pubkey_filename, ".public");
+				char * plaintext;
+				if (strcmp(ARGV[2], ARGS_FILENAME) == 0) {
+					plaintext = new char[strlen(ARGV[3])];
+					strcpy(plaintext, ARGV[3]);
+				}
+
+				if (strcmp(ARGV[2], ARGS_KEY) == 0) {
+					free(pubkey_filename);
+					pubkey_filename = new char[strlen(ARGV[3])];
+					strcpy(pubkey_filename, ARGV[3]);
+				}
+
+				if (argc == 6) {
+					if (strcmp(ARGV[4], ARGS_FILENAME) == 0) {
+						plaintext = new char[strlen(ARGV[5])];
+						strcpy(plaintext, ARGV[5]);
+					}
+
+					if (strcmp(ARGV[4], ARGS_KEY) == 0) {
+						free(pubkey_filename);
+						pubkey_filename = new char[strlen(ARGV[5])];
+						strcpy(pubkey_filename, ARGV[5]);
+					}
+				}
+
+				if (!file_exists(string(plaintext))) {
+					printf("\nERROR! Plaintext file %s doesn't exist!\n", plaintext);
+					return 1;
+				}
+				if (!file_exists(string(pubkey_filename))) {
+					printf("\nERROR! Public key file %s doesn't exist!\n", pubkey_filename);
+					return 1;
+				}
+				log_info("\nEncryption the file %s using the public key %s", plaintext, pubkey_filename);
+				// TODO: Hook up the function that will directly encrypt the given
+				// filepath
+			}
 		}
 	}
 
 	if (strcmp(ARGV[1], OPTION_DECRYPT) == 0) {
-		matched = 1;
-		if (argc >= 3) {
-			printf("\nWe can try decrypt the ciphertext now");
-			// TODO: Decrypt
-			// ARGV[2] is the ciphertext
-			// ARGV[3] is the private key file path
+		if (argc == 4 || argc == 6) {
+			matched = 1;
+			// Check that atleast one option is the file to decrypt
+			if (strcmp(ARGV[2], ARGS_FILENAME) != 0 && (argc > 4 ? strcmp(ARGV[4], ARGS_FILENAME) != 0 : 0)) {
+				matched = 0;
+			} else {
+				printf("\nWe can try to decrypt the file now");
+				char * priv_key_filename = new char[strlen(DEFAULT_FILENAME)];
+				strcpy(priv_key_filename, DEFAULT_FILENAME);
+				strcat(priv_key_filename, ".private");
+				char * ciphertext;
+				if (strcmp(ARGV[2], ARGS_FILENAME) == 0) {
+					ciphertext = new char[strlen(ARGV[3])];
+					strcpy(ciphertext, ARGV[3]);
+				}
+
+				if (strcmp(ARGV[2], ARGS_KEY) == 0) {
+					free(priv_key_filename);
+					priv_key_filename = new char[strlen(ARGV[3])];
+					strcpy(priv_key_filename, ARGV[3]);
+				}
+
+				if (argc == 6) {
+					if (strcmp(ARGV[4], ARGS_FILENAME) == 0) {
+						ciphertext = new char[strlen(ARGV[5])];
+						strcpy(ciphertext, ARGV[5]);
+					}
+
+					if (strcmp(ARGV[4], ARGS_KEY) == 0) {
+						free(priv_key_filename);
+						priv_key_filename = new char[strlen(ARGV[5])];
+						strcpy(priv_key_filename, ARGV[5]);
+					}
+				}
+
+				if (!file_exists(string(ciphertext))) {
+					printf("\nERROR! Ciphertext file %s doesn't exist!\n", ciphertext);
+					return 1;
+				}
+				if (!file_exists(string(priv_key_filename))) {
+					printf("\nERROR! Private key file %s doesn't exist!\n", priv_key_filename);
+					return 1;
+				}
+				log_info("\nDecrypting the file %s using the private key %s", ciphertext, priv_key_filename);
+				// TODO: Hook up the function that will decrypt the given
+				// filepath
+			}
 		}
 	}
 
 	if (!matched) {
-		printf("\nERROR! Invalid option. Run `rsa --help` for help text");
+		printf("\nERROR! Invalid option. Run `rsa --help` for help text\n");
 		return 1;
 	}
 
