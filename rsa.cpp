@@ -290,7 +290,10 @@ void encrypt_integer_rsa(mpz_t &plaintext, const char * pubkey_filepath, const c
 	encrypt_integer_rsa(plaintext, pubkey_filepath, ciphertext_filepath, "w");
 }
 
-void test_decrypt_integer(const char * ciphertext_filepath, const char * private_key_filepath) {
+void test_decrypt_integer(const char * ciphertext_filepath, 
+													const char * private_key_filepath, 
+													mpz_t &plaintext, 
+													unsigned long int &octet_len) {
 
 	mpz_t p, q, dp, dq, q_inv;
 	mpz_init(p);
@@ -308,6 +311,7 @@ void test_decrypt_integer(const char * ciphertext_filepath, const char * private
 	mpz_t ciphertext_integer_rep;
 	mpz_init(ciphertext_integer_rep);
 	FILE * stream = fopen(ciphertext_filepath, "r");
+	gmp_fscanf(stream, "%x", &octet_len);
 	gmp_fscanf(stream, "%Zx", ciphertext_integer_rep);
 	fclose(stream);
 
@@ -330,9 +334,6 @@ void test_decrypt_integer(const char * ciphertext_filepath, const char * private
 	// Now, temp_1 consists h
 	
 	mpz_mul(temp_1, temp_1, q);
-	
-	mpz_t plaintext;
-	mpz_init(plaintext);
 
 	mpz_add(plaintext, temp_2, temp_1);
 
@@ -345,15 +346,14 @@ void test_decrypt_integer(const char * ciphertext_filepath, const char * private
 
 	log_timestamp("END Decryption according to RFC");
 
-	mpz_init(p);
-	mpz_init(q);
-	mpz_init(dp);
-	mpz_init(dq);
-	mpz_init(q_inv);
-	mpz_init(ciphertext_integer_rep);
-	mpz_init(temp_1);
-	mpz_init(temp_2);
-	mpz_init(plaintext);
+	mpz_clear(p);
+	mpz_clear(q);
+	mpz_clear(dp);
+	mpz_clear(dq);
+	mpz_clear(q_inv);
+	mpz_clear(ciphertext_integer_rep);
+	mpz_clear(temp_1);
+	mpz_clear(temp_2);
 }
 
 void printHelp() {
@@ -472,6 +472,15 @@ char * convert_integer_to_string(unsigned long int int_rep, unsigned long int oc
 	mpz_clear(int_rep_gmp);
 	return result;
 }
+
+void convert_integer_to_file(mpz_t &int_rep, unsigned long int octet_len, const char * output_filename) {
+	FILE * stream = fopen(output_filename, "w");
+	char * string_rep = convert_integer_to_string(int_rep, octet_len);
+	fprintf(stream, "%s", string_rep);
+	free(string_rep);
+	fclose(stream);
+}
+	
 
 //void convert_integer_to_file(mpz_t &file_representation, mpz_t &filename_representation) {
 //}
@@ -661,6 +670,19 @@ int main(int argc, char **ARGV) {
 				log_info("\nDecrypting the file %s using the private key %s", ciphertext, priv_key_filename);
 				// TODO: Hook up the function that will decrypt the given
 				// filepath
+				
+				// Decrypt the file to get the plaintext integer representation and the
+				// octet length of the plaintext itself
+				mpz_t plaintext;
+				mpz_init(plaintext);
+				unsigned long int octet_len = 0;
+				test_decrypt_integer(ciphertext, priv_key_filename, plaintext, octet_len);
+
+				// Now, find the name of the plaintext file
+				// before encryption
+				string plaintext_filename = string(ciphertext).substr(0, strlen(ciphertext) - strlen(FILENAME_ENCRYPTED_FILE_SUFFIX));
+				
+				convert_integer_to_file(plaintext, octet_len, plaintext_filename.c_str());
 			}
 		}
 	}
