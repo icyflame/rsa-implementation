@@ -2,5 +2,6 @@
 *.swp
 *~
 temp_*
+rsa
 *.private
 *.public

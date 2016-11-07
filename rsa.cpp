@@ -335,8 +335,7 @@ void decrypt_integer_rsa(const char * ciphertext_filepath,
 	mpz_set_ui(plaintext, 0);
 	unsigned long int i = 0;
 
-	while(!feof(stream)) {
-		gmp_fscanf(stream, "%Zx", ciphertext_integer_rep);
+	while(1 == gmp_fscanf(stream, "%Zx", ciphertext_integer_rep)) {
 		log_debug("CT chunk %d: %Zd", i, ciphertext_integer_rep);
 
 		// Start the decryption process
@@ -639,7 +638,7 @@ int main(int argc, char **ARGV) {
 				// Get the filename of the ciphertext
 				char * filename_base = basename(plaintext);
 				char * ciphertext_filename = new char[strlen(filename_base) + strlen(FILENAME_ENCRYPTED_FILE_SUFFIX)];
-				strcat(ciphertext_filename, filename_base);
+				strcpy(ciphertext_filename, filename_base);
 				strcat(ciphertext_filename, FILENAME_ENCRYPTED_FILE_SUFFIX);
 				
 				// Write the octet len of the integer to the file
