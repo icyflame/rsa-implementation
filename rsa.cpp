@@ -259,9 +259,10 @@ void generate_key_pair(int PRIMES_BIT_LENGTH, const char * filename) {
 
 void encrypt_integer_rsa(mpz_t &plaintext, const char * pubkey_filepath, const char * ciphertext_filepath, const char * file_open_mode) {
 	
-	mpz_t modulus, public_exponent;
+	mpz_t modulus, public_exponent, temp1;
 	mpz_init(modulus);
 	mpz_init(public_exponent);
+	mpz_init(temp1);
 
 	read_public_key_from_file(pubkey_filepath, modulus, public_exponent);
 
@@ -269,18 +270,24 @@ void encrypt_integer_rsa(mpz_t &plaintext, const char * pubkey_filepath, const c
 	log_verbose("Modulus: %Zd\n", modulus);
 	log_verbose("Public exponent: %Zd", public_exponent);
 
+	// REMEMBER: Encrypted number should ALWAYS be less than the modulus!
+
 	FILE * stream = fopen(ciphertext_filepath, file_open_mode);
-
-	// Re-using the same variable to store the ciphertext instead of using a new
-	// variable
-	mpz_powm(modulus, plaintext, public_exponent, modulus);
-
 	log_verbose("Ciphertext: %Zd", modulus);
 
-	gmp_fprintf(stream, "%Zx", modulus);
+	do {
+		mpz_fdiv_qr(plaintext, temp1, plaintext, modulus);
+		// Re-using the same variable to store the ciphertext instead of using a new
+		// variable
+		mpz_powm(temp1, temp1, public_exponent, modulus);
+
+		gmp_fprintf(stream, "%Zx\n", modulus);
+	} while (mpz_cmp_ui(plaintext, 0) > 0);
+
 
 	fclose(stream);
 
+	mpz_clear(temp1);
 	mpz_clear(modulus);
 	mpz_clear(public_exponent);
 	mpz_clear(plaintext);
