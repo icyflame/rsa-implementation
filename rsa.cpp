@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <stdio.h>
+#include <libgen.h>
 #include <sys/stat.h>
 #include <string.h>
 #include "gmp/gmp.h"
@@ -23,6 +24,8 @@
 #define FILENAME_TEMP_P "temp_p"
 #define FILENAME_TEMP_Q "temp_q"
 #define FILENAME_CIPHERTEXT "ciphertext"
+
+#define FILENAME_ENCRYPTED_FILE_SUFFIX ".encrypted"
 
 #define FILENAME_PRIVATE_KEY "rsa.private"
 #define FILENAME_PUBLIC_KEY "rsa.public"
@@ -254,21 +257,19 @@ void generate_key_pair(int PRIMES_BIT_LENGTH, const char * filename) {
 	mpz_clear(temp_1);
 }
 
-void test_encrypt_integer(long unsigned int message, const char * pubkey_filepath, const char * ciphertext_filepath) {
+void encrypt_integer_rsa(mpz_t &plaintext, const char * pubkey_filepath, const char * ciphertext_filepath, const char * file_open_mode) {
 	
-	mpz_t modulus, public_exponent, plaintext;
+	mpz_t modulus, public_exponent;
 	mpz_init(modulus);
 	mpz_init(public_exponent);
-	mpz_init(plaintext);
-
-	mpz_set_ui(plaintext, message);
 
 	read_public_key_from_file(pubkey_filepath, modulus, public_exponent);
 
+	log_verbose("Writing encrypted content to %s", ciphertext_filepath);
 	log_verbose("Modulus: %Zd\n", modulus);
 	log_verbose("Public exponent: %Zd", public_exponent);
 
-	FILE * stream = fopen(ciphertext_filepath, "w");
+	FILE * stream = fopen(ciphertext_filepath, file_open_mode);
 
 	// Re-using the same variable to store the ciphertext instead of using a new
 	// variable
@@ -283,6 +284,10 @@ void test_encrypt_integer(long unsigned int message, const char * pubkey_filepat
 	mpz_clear(modulus);
 	mpz_clear(public_exponent);
 	mpz_clear(plaintext);
+}
+
+void encrypt_integer_rsa(mpz_t &plaintext, const char * pubkey_filepath, const char * ciphertext_filepath) {
+	encrypt_integer_rsa(plaintext, pubkey_filepath, ciphertext_filepath, "w");
 }
 
 void test_decrypt_integer(const char * ciphertext_filepath, const char * private_key_filepath) {
@@ -584,6 +589,27 @@ int main(int argc, char **ARGV) {
 				log_info("\nEncryption the file %s using the public key %s", plaintext, pubkey_filename);
 				// TODO: Hook up the function that will directly encrypt the given
 				// filepath
+				// Get the integer representation of the file
+				mpz_t file_rep, octet_len;
+				mpz_init(file_rep);
+				mpz_init(octet_len);
+				convert_file_to_integer(plaintext, file_rep, octet_len);
+				
+				// Get the filename of the ciphertext
+				char * filename_base = basename(plaintext);
+				char * ciphertext_filename = new char[strlen(filename_base) + strlen(FILENAME_ENCRYPTED_FILE_SUFFIX)];
+				strcat(ciphertext_filename, filename_base);
+				strcat(ciphertext_filename, FILENAME_ENCRYPTED_FILE_SUFFIX);
+				
+				// Write the octet len of the integer to the file
+				FILE * stream = fopen(ciphertext_filename, "w");
+				gmp_fprintf(stream, "%Zx\n", octet_len);
+				fclose(stream);
+				
+				// Now, write the ciphertext to the file
+				// Append it to this file, instead of writing it to a new file
+				// While reading, read with gmp_fscanf(stream, "%Zx\n%Zx", octet_len, ciphertext_int_rep);
+				encrypt_integer_rsa(file_rep, pubkey_filename, ciphertext_filename, "a");
 			}
 		}
 	}
