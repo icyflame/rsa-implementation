@@ -38,7 +38,7 @@
 #define INFO 1
 #define TIMESTAMP 1
 #define DEBUG 1
-#define VERBOSE 1
+#define VERBOSE 0
 #define log_debug if (DEBUG) printf("\n"); gmp_printf
 #define log_info if (INFO) printf("\n"); printf
 #define log_verbose if (VERBOSE) printf("\n"); gmp_printf
@@ -277,11 +277,14 @@ void encrypt_integer_rsa(mpz_t &plaintext, const char * pubkey_filepath, const c
 
 	do {
 		mpz_fdiv_qr(plaintext, temp1, plaintext, modulus);
+		log_debug("PT Chunk: %Zd", temp1);
 		// Re-using the same variable to store the ciphertext instead of using a new
 		// variable
 		mpz_powm(temp1, temp1, public_exponent, modulus);
 
-		gmp_fprintf(stream, "%Zx\n", modulus);
+		log_debug("CT Chunk: %Zd", temp1);
+
+		gmp_fprintf(stream, "%Zx\n", temp1);
 	} while (mpz_cmp_ui(plaintext, 0) > 0);
 
 
@@ -297,7 +300,7 @@ void encrypt_integer_rsa(mpz_t &plaintext, const char * pubkey_filepath, const c
 	encrypt_integer_rsa(plaintext, pubkey_filepath, ciphertext_filepath, "w");
 }
 
-void test_decrypt_integer(const char * ciphertext_filepath, 
+void decrypt_integer_rsa(const char * ciphertext_filepath, 
 													const char * private_key_filepath, 
 													mpz_t &plaintext, 
 													unsigned long int &octet_len) {
@@ -314,42 +317,63 @@ void test_decrypt_integer(const char * ciphertext_filepath,
 
 	log_verbose("P: %Zd\nQ: %Zd\ndp: %Zd\ndq: %Zd\nQ_inv: %Zd", p, q, dp, dq, q_inv);
 
+	mpz_t modulus;
+	mpz_init(modulus);
+	mpz_mul(modulus, p, q);
+	mpz_t temp_1, temp_2, intermediary_pt;
+	mpz_init(temp_1);
+	mpz_init(temp_2);
+	mpz_init(intermediary_pt);
+
 	// Read the ciphertext's integer representation
 	mpz_t ciphertext_integer_rep;
 	mpz_init(ciphertext_integer_rep);
 	FILE * stream = fopen(ciphertext_filepath, "r");
 	gmp_fscanf(stream, "%x", &octet_len);
-	gmp_fscanf(stream, "%Zx", ciphertext_integer_rep);
+	log_verbose("Octet length: %d", octet_len);
+
+	mpz_set_ui(plaintext, 0);
+	unsigned long int i = 0;
+
+	while(!feof(stream)) {
+		gmp_fscanf(stream, "%Zx", ciphertext_integer_rep);
+		log_debug("CT chunk %d: %Zd", i, ciphertext_integer_rep);
+
+		// Start the decryption process
+		// As per RSADP: 5.1.2 on RFC 3447
+		log_timestamp("START Decryption of chunk according to RFC");
+
+		mpz_powm(temp_1, ciphertext_integer_rep, dp, p);
+		mpz_powm(temp_2, ciphertext_integer_rep, dq, q);
+
+		mpz_sub(temp_1, temp_1, temp_2);
+		mpz_mul(temp_1, temp_1, q_inv);
+
+		mpz_mod(temp_1, temp_1, p);
+
+		// Now, temp_1 consists h
+		
+		mpz_mul(temp_1, temp_1, q);
+
+		mpz_add(intermediary_pt, temp_2, temp_1);
+
+		mpz_mod(intermediary_pt, intermediary_pt, modulus);
+
+		log_debug("PT Chunk: %Zd", intermediary_pt);
+
+		if (i == 0) {
+			mpz_add(plaintext, plaintext, intermediary_pt);
+		} else {
+			mpz_pow_ui(temp_1, modulus, i);
+			mpz_mul(temp_1, temp_1, intermediary_pt);
+			mpz_add(plaintext, plaintext, temp_1);
+		}
+		++i;
+	}
+
 	fclose(stream);
 
-	// Start the decryption process
-	// As per RSADP: 5.1.2 on RFC 3447
-	log_timestamp("START Decryption according to RFC");
-	
-	mpz_t temp_1, temp_2;
-	mpz_init(temp_1);
-	mpz_init(temp_2);
-
-	mpz_powm(temp_1, ciphertext_integer_rep, dp, p);
-	mpz_powm(temp_2, ciphertext_integer_rep, dq, q);
-
-	mpz_sub(temp_1, temp_1, temp_2);
-	mpz_mul(temp_1, temp_1, q_inv);
-
-	mpz_mod(temp_1, temp_1, p);
-
-	// Now, temp_1 consists h
-	
-	mpz_mul(temp_1, temp_1, q);
-
-	mpz_add(plaintext, temp_2, temp_1);
-
-	mpz_t modulus;
-	mpz_init(modulus);
-	mpz_mul(modulus, p, q);
-	mpz_mod(plaintext, plaintext, modulus);
-
-	gmp_printf("That CT decrypts to: %Zd\n", plaintext);
+	log_verbose("That CT decrypts to: %Zd\n", plaintext);
 
 	log_timestamp("END Decryption according to RFC");
 
@@ -361,6 +385,7 @@ void test_decrypt_integer(const char * ciphertext_filepath,
 	mpz_clear(ciphertext_integer_rep);
 	mpz_clear(temp_1);
 	mpz_clear(temp_2);
+	mpz_clear(intermediary_pt);
 }
 
 void printHelp() {
@@ -393,7 +418,7 @@ void convert_string_to_integer(const char * plaintext, mpz_t &string_representat
 		mpz_add(string_representation, string_representation, temp);
 	}
 
-	log_verbose("\nInteger repesentation of %s is: %Zd\nwith octet length of %Zd", plaintext, string_representation, octet_len);
+	// log_verbose("\nInteger repesentation of %s is: %Zd\nwith octet length of %Zd", plaintext, string_representation, octet_len);
 
 	mpz_clear(temp);
 }
@@ -431,7 +456,7 @@ void convert_file_to_integer(const char * filepath, mpz_t &file_representation, 
 		mpz_add(file_representation, file_representation, temp);
 	}
 
-	log_verbose("\nInteger repesentation of that file is: %Zd\nwith octet length of %Zd", file_representation, octet_len);
+	// log_verbose("\nInteger repesentation of that file is: %Zd\nwith octet length of %Zd", file_representation, octet_len);
 
 	mpz_clear(temp);
 	fclose(stream);
@@ -457,7 +482,7 @@ char * convert_integer_to_string(mpz_t &int_rep, unsigned long int octet_len) {
 	
 	while(mpz_cmp_ui(int_rep, 0) > 0 && octet_len >= 0) {
 		string_rep[octet_len--] = (char) mpz_fdiv_qr_ui(int_rep, remainder, int_rep, 256);
-		log_verbose("Integer representation of this character: %u, %c; Remainder: %Zd", string_rep[octet_len+1], string_rep[octet_len+1], remainder);
+		// log_verbose("Integer representation of this character: %u, %c; Remainder: %Zd", string_rep[octet_len+1], string_rep[octet_len+1], remainder);
 	}
 
 	log_verbose("Integer rep now: %Zd", int_rep);
@@ -683,7 +708,7 @@ int main(int argc, char **ARGV) {
 				mpz_t plaintext;
 				mpz_init(plaintext);
 				unsigned long int octet_len = 0;
-				test_decrypt_integer(ciphertext, priv_key_filename, plaintext, octet_len);
+				decrypt_integer_rsa(ciphertext, priv_key_filename, plaintext, octet_len);
 
 				// Now, find the name of the plaintext file
 				// before encryption
