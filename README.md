@@ -2,12 +2,6 @@
 
 **Topic:** RSA Encryption and Decryption
 
-**Group:** 
-
-- 13ME33012 K Siddharth Kannan (@icyflame)
-- 11CS10053 Vishwajeet Saharan (@vsaharan93)
-- 12CS30020 Mohammad Affan Zafar (@aaffan)
-
 **Library:** [GNU GMP](https://gmplib.org/)
 
 **Building the project:** `g++ rsa.cpp -lgmpxx -lgmp`
@@ -16,7 +10,7 @@
 
 - [x] Key generation
 - [x] File format to store the keypair (and share the public key)
-- [ ] Conversion of message to something that can be raised to a power and from
+- [x] Conversion of message to something that can be raised to a power and from
 		the decrypted number back to the message
 
 ### Resources
